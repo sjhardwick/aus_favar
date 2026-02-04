@@ -16,6 +16,7 @@ source("R/data_pull.R")
 source("R/data_prep.R")
 source("R/favar.R")
 source("R/outputs.R")
+source("R/cache.R")
 
 # Target variable labels for display
 TARGET_LABELS <- c(
@@ -55,9 +56,10 @@ ui <- fluidPage(
                     value = 2, step = 1)
       ),
       hr(),
-      actionButton("refresh", "Refresh Data",
+      actionButton("refresh", "Refresh Data (Live Download)",
                     icon = icon("sync"),
                     class = "btn-primary btn-block"),
+      uiOutput("cache_status"),
       hr(),
       helpText("Data sourced from ABS (readabs) and RBA (readrba)."),
       helpText("Model: PCA factors + VAR on target variables.")
@@ -122,24 +124,56 @@ ui <- fluidPage(
 # ---- Server ----
 server <- function(input, output, session) {
 
-  # Reactive: raw data (only re-fetched on refresh button)
-  raw_data <- eventReactive(input$refresh, {
-    withProgress(message = "Downloading data...", {
+  # Reactive values to hold raw data
+  rv <- reactiveValues(raw = NULL)
+
+  # On startup: load from cache if available, otherwise download
+
+  observe({
+    if (is.null(rv$raw)) {
+      cached <- cache_load()
+      if (!is.null(cached)) {
+        rv$raw <- cached
+      } else {
+        withProgress(message = "No cache found. Downloading data...", {
+          incProgress(0.1, detail = "Fetching ABS target series")
+          abs_df <- pull_abs_data()
+          incProgress(0.3, detail = "Fetching RBA cash rate")
+          rba_df <- pull_rba_data()
+          incProgress(0.5, detail = "Fetching panel data")
+          panel_df <- pull_panel_data()
+          rd <- list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
+          cache_save(rd)
+          rv$raw <- rd
+        })
+      }
+    }
+  }) |> bindEvent(TRUE, once = TRUE)
+
+  # Refresh button: download fresh data and update cache
+  observeEvent(input$refresh, {
+    withProgress(message = "Downloading fresh data...", {
       incProgress(0.1, detail = "Fetching ABS target series")
       abs_df <- pull_abs_data()
-
       incProgress(0.3, detail = "Fetching RBA cash rate")
       rba_df <- pull_rba_data()
-
       incProgress(0.5, detail = "Fetching panel data")
       panel_df <- pull_panel_data()
-
-      list(
-        targets = bind_rows(abs_df, rba_df),
-        panel   = panel_df
-      )
+      rd <- list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
+      cache_save(rd)
+      rv$raw <- rd
     })
-  }, ignoreNULL = FALSE)
+  })
+
+  # Expose raw data as a reactive for downstream consumers
+  raw_data <- reactive({ rv$raw })
+
+  # Cache status display
+  output$cache_status <- renderUI({
+    # Re-render when raw data changes
+    raw_data()
+    helpText(paste("Data cached:", cache_age_label()))
+  })
 
   # Reactive: prepared data
   prepared <- reactive({
