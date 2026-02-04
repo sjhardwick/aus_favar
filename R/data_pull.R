@@ -304,6 +304,57 @@ pull_panel_data <- function() {
       dplyr::distinct(date, .keep_all = TRUE)
   }, error = function(e) message("RBA I1 download failed: ", e$message))
 
+  # --- RBA Government Bond Yields (table F2) ---
+  tryCatch({
+    yields_raw <- readrba::read_rba(table_no = "F2")
+    panel_list$yield_2y <- yields_raw |>
+      dplyr::filter(grepl("2 year bond", series, ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "yield_2y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$yield_3y <- yields_raw |>
+      dplyr::filter(grepl("3 year bond", series, ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "yield_3y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$yield_5y <- yields_raw |>
+      dplyr::filter(grepl("5 year bond", series, ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "yield_5y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$yield_10y <- yields_raw |>
+      dplyr::filter(grepl("10 year bond", series, ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "yield_10y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+  }, error = function(e) message("RBA F2 download failed: ", e$message))
+
+  # --- RBA Inflation Expectations (table G3) ---
+  tryCatch({
+    infl_exp_raw <- readrba::read_rba(table_no = "G3")
+    panel_list$infl_exp_consumer <- infl_exp_raw |>
+      dplyr::filter(grepl("Consumer inflation expectations", series,
+                           ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "inflation_exp_consumer", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$breakeven_10y <- infl_exp_raw |>
+      dplyr::filter(grepl("Break-even 10-year inflation", series,
+                           ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "breakeven_inflation_10y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$infl_exp_business <- infl_exp_raw |>
+      dplyr::filter(grepl("Business inflation expectations", series,
+                           ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "inflation_exp_business", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$infl_exp_mkt_1y <- infl_exp_raw |>
+      dplyr::filter(grepl("Market economists.*1-year", series,
+                           ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "inflation_exp_mkt_1y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+    panel_list$infl_exp_mkt_2y <- infl_exp_raw |>
+      dplyr::filter(grepl("Market economists.*2-year", series,
+                           ignore.case = TRUE)) |>
+      dplyr::transmute(date, series = "inflation_exp_mkt_2y", value) |>
+      dplyr::distinct(date, .keep_all = TRUE)
+  }, error = function(e) message("RBA G3 download failed: ", e$message))
+
   # --- Terms of trade (ABS 5206.0, table 1) ---
   tryCatch({
     na1_raw <- readabs::read_abs(cat_no = "5206.0", tables = 1,

@@ -6,13 +6,13 @@
 #' @param model List returned by estimate_favar()
 #' @param h Forecast horizon (quarters)
 #' @param n_boot Number of bootstrap replications for confidence bands
-#' @param ci Confidence interval width (default 0.80 and 0.95)
+#' @param ci Confidence interval width (default 0.70 and 0.90)
 #' @return List with:
 #'   - point: data frame of point forecasts (h x n_vars)
-#'   - lower80, upper80: 80% bands
-#'   - lower95, upper95: 95% bands
+#'   - lower70, upper70: 70% bands
+#'   - lower90, upper90: 90% bands
 favar_forecast <- function(model, h = 8, n_boot = 500,
-                           ci = c(0.80, 0.95)) {
+                           ci = c(0.70, 0.90)) {
   var_model <- model$var_model
 
   # Point forecast
@@ -23,10 +23,10 @@ favar_forecast <- function(model, h = 8, n_boot = 500,
   n_vars <- length(var_names)
 
   point_df <- data.frame(horizon = 1:h)
-  lower80_df <- data.frame(horizon = 1:h)
-  upper80_df <- data.frame(horizon = 1:h)
-  lower95_df <- data.frame(horizon = 1:h)
-  upper95_df <- data.frame(horizon = 1:h)
+  lower70_df <- data.frame(horizon = 1:h)
+  upper70_df <- data.frame(horizon = 1:h)
+  lower90_df <- data.frame(horizon = 1:h)
+  upper90_df <- data.frame(horizon = 1:h)
 
   for (v in var_names) {
     fc_v <- fc$fcst[[v]]
@@ -35,21 +35,21 @@ favar_forecast <- function(model, h = 8, n_boot = 500,
     # Use the predict() SE to construct bands at different CI levels
     se <- (fc_v[, "upper"] - fc_v[, "lower"]) / (2 * qnorm(0.975))
 
-    z80 <- qnorm(0.90)
-    z95 <- qnorm(0.975)
+    z70 <- qnorm(0.85)
+    z90 <- qnorm(0.95)
 
-    lower80_df[[v]] <- fc_v[, "fcst"] - z80 * se
-    upper80_df[[v]] <- fc_v[, "fcst"] + z80 * se
-    lower95_df[[v]] <- fc_v[, "fcst"] - z95 * se
-    upper95_df[[v]] <- fc_v[, "fcst"] + z95 * se
+    lower70_df[[v]] <- fc_v[, "fcst"] - z70 * se
+    upper70_df[[v]] <- fc_v[, "fcst"] + z70 * se
+    lower90_df[[v]] <- fc_v[, "fcst"] - z90 * se
+    upper90_df[[v]] <- fc_v[, "fcst"] + z90 * se
   }
 
   list(
     point   = point_df,
-    lower80 = lower80_df,
-    upper80 = upper80_df,
-    lower95 = lower95_df,
-    upper95 = upper95_df
+    lower70 = lower70_df,
+    upper70 = upper70_df,
+    lower90 = lower90_df,
+    upper90 = upper90_df
   )
 }
 
@@ -65,7 +65,7 @@ favar_forecast <- function(model, h = 8, n_boot = 500,
 #' @return vars::irf object
 favar_irf <- function(model, n_ahead = 20, impulse = NULL,
                       response = NULL, boot = TRUE,
-                      n_boot = 200, ci = 0.95) {
+                      n_boot = 500, ci = 0.95) {
   vars::irf(model$var_model,
             impulse    = impulse,
             response   = response,
@@ -95,7 +95,7 @@ ANNUALISE_VARS <- c("gdp", "cpi")
 #' @return forecast_obj with values multiplied by 4 if variable is annualised
 annualise_forecast <- function(forecast_obj, variable) {
   if (!(variable %in% ANNUALISE_VARS)) return(forecast_obj)
-  for (slot in c("point", "lower80", "upper80", "lower95", "upper95")) {
+  for (slot in c("point", "lower70", "upper70", "lower90", "upper90")) {
     forecast_obj[[slot]][[variable]] <- forecast_obj[[slot]][[variable]] * 4
   }
   forecast_obj
@@ -130,10 +130,10 @@ plot_forecast <- function(forecast_obj, variable, history_df = NULL,
   fc_df <- data.frame(
     date    = fc_dates,
     point   = forecast_obj$point[[variable]],
-    lower80 = forecast_obj$lower80[[variable]],
-    upper80 = forecast_obj$upper80[[variable]],
-    lower95 = forecast_obj$lower95[[variable]],
-    upper95 = forecast_obj$upper95[[variable]]
+    lower70 = forecast_obj$lower70[[variable]],
+    upper70 = forecast_obj$upper70[[variable]],
+    lower90 = forecast_obj$lower90[[variable]],
+    upper90 = forecast_obj$upper90[[variable]]
   )
 
   if (is.null(title)) {
@@ -151,18 +151,18 @@ plot_forecast <- function(forecast_obj, variable, history_df = NULL,
     )
   }
 
-  # 95% band
+  # 90% band
 
   p <- p +
     ggplot2::geom_ribbon(
       data = fc_df,
-      ggplot2::aes(x = date, ymin = lower95, ymax = upper95),
+      ggplot2::aes(x = date, ymin = lower90, ymax = upper90),
       fill = "#2171B5", alpha = 0.2
     ) +
-    # 80% band
+    # 70% band
     ggplot2::geom_ribbon(
       data = fc_df,
-      ggplot2::aes(x = date, ymin = lower80, ymax = upper80),
+      ggplot2::aes(x = date, ymin = lower70, ymax = upper70),
       fill = "#2171B5", alpha = 0.3
     ) +
     # Point forecast

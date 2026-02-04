@@ -42,7 +42,16 @@ TRANSFORM_MAP <- list(
   coal_exports             = 2L,
   metal_ores_exports       = 2L,
   resource_exports         = 2L,
-  terms_of_trade           = 2L
+  terms_of_trade           = 2L,
+  yield_2y                 = 1L,
+  yield_3y                 = 1L,
+  yield_5y                 = 1L,
+  yield_10y                = 1L,
+  inflation_exp_consumer   = 1L,
+  breakeven_inflation_10y  = 1L,
+  inflation_exp_business   = 1L,
+  inflation_exp_mkt_1y     = 1L,
+  inflation_exp_mkt_2y     = 1L
 )
 
 #' Align series to quarterly frequency
@@ -55,7 +64,11 @@ TRANSFORM_MAP <- list(
 align_quarterly <- function(df) {
   # Rate/stock series: take end-of-quarter value
   rate_series <- c("unemployment_rate", "cash_rate", "participation_rate",
-                   "bill_rate_90d", "twi", "aud_usd")
+                   "bill_rate_90d", "twi", "aud_usd",
+                   "yield_2y", "yield_3y", "yield_5y", "yield_10y",
+                   "inflation_exp_consumer", "breakeven_inflation_10y",
+                   "inflation_exp_business", "inflation_exp_mkt_1y",
+                   "inflation_exp_mkt_2y")
 
   df <- df |>
     dplyr::mutate(
@@ -222,15 +235,20 @@ build_panel <- function(target_df, panel_df) {
   combined <- combined |>
     tidyr::drop_na(dplyr::all_of(target_cols))
 
-  # Step 2: Drop panel columns with >20% missing in remaining rows
+  # Step 2: Drop panel columns with >80% missing in remaining rows
   n_rows <- nrow(combined)
   na_frac <- colSums(is.na(combined[, panel_cols, drop = FALSE])) / n_rows
-  keep_panels <- names(na_frac[na_frac <= 0.20])
+  keep_panels <- names(na_frac[na_frac <= 0.80])
   panel_cols <- intersect(panel_cols, keep_panels)
 
-  # Step 3: Drop remaining rows with any NA in kept panel columns
-  combined <- combined |>
-    tidyr::drop_na(dplyr::all_of(panel_cols))
+  # Step 3: Fill remaining panel NAs with column means
+  # (standard treatment for unbalanced panels in PCA — equivalent to
+  # EM-PCA E-step imputation with column means)
+  for (col in panel_cols) {
+    col_vals <- combined[[col]]
+    col_mean <- mean(col_vals, na.rm = TRUE)
+    combined[[col]][is.na(col_vals)] <- col_mean
+  }
 
   dates <- combined$date
 

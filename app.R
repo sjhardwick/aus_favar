@@ -3,6 +3,8 @@
 # Factor-Augmented VAR with forecasts, IRFs, and FEVD
 
 library(shiny)
+library(bslib)
+library(plotly)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -29,94 +31,94 @@ TARGET_LABELS <- c(
 TARGET_NAMES <- names(TARGET_LABELS)
 
 # ---- UI ----
-ui <- fluidPage(
-  titlePanel("Australian Economy FAVAR"),
-  sidebarLayout(
-    sidebarPanel(
-      width = 3,
-      h4("Model Settings"),
-      sliderInput("horizon", "Forecast horizon (quarters)",
-                  min = 1, max = 12, value = 8, step = 1),
-      radioButtons("n_factors_mode", "Number of factors",
-                   choices = c("Auto (Bai-Ng IC)" = "auto",
-                               "Manual" = "manual"),
-                   selected = "auto"),
-      conditionalPanel(
-        condition = "input.n_factors_mode == 'manual'",
-        sliderInput("n_factors", "Factors", min = 1, max = 10,
-                    value = 3, step = 1)
-      ),
-      radioButtons("lag_mode", "VAR lag order",
-                   choices = c("Auto (AIC)" = "auto",
-                               "Manual" = "manual"),
-                   selected = "auto"),
-      conditionalPanel(
-        condition = "input.lag_mode == 'manual'",
-        sliderInput("var_lags", "Lags", min = 1, max = 8,
-                    value = 2, step = 1)
-      ),
-      hr(),
-      actionButton("refresh", "Refresh Data (Live Download)",
-                    icon = icon("sync"),
-                    class = "btn-primary btn-block"),
-      uiOutput("cache_status"),
-      hr(),
-      helpText("Data sourced from ABS (readabs) and RBA (readrba)."),
-      helpText("Model: PCA factors + VAR on target variables.")
+ui <- page_sidebar(
+  title = "Australian Economy FAVAR",
+  theme = bs_theme(
+    bootswatch = "flatly",
+    base_font = font_google("Inter"),
+    primary = "#2171B5"
+  ),
+  sidebar = sidebar(
+    width = 300,
+    h4("Model Settings"),
+    sliderInput("horizon", "Forecast horizon (quarters)",
+                min = 1, max = 12, value = 8, step = 1),
+    radioButtons("n_factors_mode", "Number of factors",
+                 choices = c("Auto (Bai-Ng IC)" = "auto",
+                             "Manual" = "manual"),
+                 selected = "auto"),
+    conditionalPanel(
+      condition = "input.n_factors_mode == 'manual'",
+      sliderInput("n_factors", "Factors", min = 1, max = 10,
+                  value = 3, step = 1)
     ),
-    mainPanel(
-      width = 9,
-      tabsetPanel(
-        id = "tabs",
-        tabPanel(
-          "Forecasts",
-          br(),
-          fluidRow(
-            column(6, plotOutput("fc_gdp", height = "320px")),
-            column(6, plotOutput("fc_cpi", height = "320px"))
-          ),
-          fluidRow(
-            column(6, plotOutput("fc_unemp", height = "320px")),
-            column(6, plotOutput("fc_cash", height = "320px"))
-          )
-        ),
-        tabPanel(
-          "Impulse Responses",
-          br(),
-          fluidRow(
-            column(4,
-                   selectInput("irf_shock", "Shock variable",
-                               choices = NULL)
-            )
-          ),
-          plotOutput("irf_plot", height = "600px")
-        ),
-        tabPanel(
-          "Variance Decomposition",
-          br(),
-          fluidRow(
-            column(6, plotOutput("fevd_gdp", height = "350px")),
-            column(6, plotOutput("fevd_cpi", height = "350px"))
-          ),
-          fluidRow(
-            column(6, plotOutput("fevd_unemp", height = "350px")),
-            column(6, plotOutput("fevd_cash", height = "350px"))
-          )
-        ),
-        tabPanel(
-          "Factor Loadings",
-          br(),
-          fluidRow(
-            column(6, plotOutput("scree_plot", height = "350px")),
-            column(6,
-                   br(),
-                   htmlOutput("factor_summary")
-            )
-          ),
-          hr(),
-          plotOutput("loadings_plot", height = "500px")
-        )
+    radioButtons("lag_mode", "VAR lag order",
+                 choices = c("Auto (AIC)" = "auto",
+                             "Manual" = "manual"),
+                 selected = "auto"),
+    conditionalPanel(
+      condition = "input.lag_mode == 'manual'",
+      sliderInput("var_lags", "Lags", min = 1, max = 8,
+                  value = 2, step = 1)
+    ),
+    hr(),
+    actionButton("refresh", "Refresh Data (Live Download)",
+                  icon = icon("sync"),
+                  class = "btn-primary w-100"),
+    uiOutput("cache_status"),
+    hr(),
+    helpText("Data sourced from ABS (readabs) and RBA (readrba)."),
+    helpText("Model: PCA factors + VAR on target variables.")
+  ),
+
+  tags$style(HTML("
+    .plot-output { max-width: 100%; }
+    @media (max-width: 575.98px) {
+      .plot-sm { height: 260px !important; }
+      .plot-irf { height: 500px !important; }
+      .card { margin-bottom: 0.5rem; }
+    }
+  ")),
+
+  navset_card_tab(
+    id = "tabs",
+    nav_panel(
+      "Forecasts",
+      layout_columns(
+        col_widths = bslib::breakpoints(sm = 6, xs = 12),
+        card(plotlyOutput("fc_gdp", height = "320px")),
+        card(plotlyOutput("fc_cpi", height = "320px")),
+        card(plotlyOutput("fc_unemp", height = "320px")),
+        card(plotlyOutput("fc_cash", height = "320px"))
       )
+    ),
+    nav_panel(
+      "Impulse Responses",
+      layout_columns(
+        col_widths = bslib::breakpoints(sm = 4, xs = 12),
+        selectInput("irf_shock", "Shock variable", choices = NULL)
+      ),
+      card(plotlyOutput("irf_plot", height = "600px"))
+    ),
+    nav_panel(
+      "Variance Decomposition",
+      layout_columns(
+        col_widths = bslib::breakpoints(sm = 6, xs = 12),
+        card(plotlyOutput("fevd_gdp", height = "350px")),
+        card(plotlyOutput("fevd_cpi", height = "350px")),
+        card(plotlyOutput("fevd_unemp", height = "350px")),
+        card(plotlyOutput("fevd_cash", height = "350px"))
+      )
+    ),
+    nav_panel(
+      "Factor Loadings",
+      layout_columns(
+        col_widths = bslib::breakpoints(sm = 6, xs = 12),
+        card(plotlyOutput("scree_plot", height = "350px")),
+        card(htmlOutput("factor_summary"))
+      ),
+      hr(),
+      card(plotlyOutput("loadings_plot", height = "500px"))
     )
   )
 )
@@ -283,52 +285,56 @@ server <- function(input, output, session) {
   }
 
   # ---- Forecast plots ----
-  output$fc_gdp <- renderPlot({
+  output$fc_gdp <- renderPlotly({
     fc <- forecasts()
     prep <- prepared()
     req(fc, prep)
     fc <- annualise_forecast(fc, "gdp")
     hist_df <- get_history("gdp")
     last_d <- max(prep$dates)
-    plot_forecast(fc, "gdp", history_df = hist_df, last_date = last_d,
-                  title = TARGET_LABELS["gdp"])
+    p <- plot_forecast(fc, "gdp", history_df = hist_df, last_date = last_d,
+                       title = TARGET_LABELS["gdp"])
+    ggplotly(p) |> layout(hovermode = "x unified")
   })
 
-  output$fc_cpi <- renderPlot({
+  output$fc_cpi <- renderPlotly({
     fc <- forecasts()
     prep <- prepared()
     req(fc, prep)
     fc <- annualise_forecast(fc, "cpi")
     hist_df <- get_history("cpi")
     last_d <- max(prep$dates)
-    plot_forecast(fc, "cpi", history_df = hist_df, last_date = last_d,
-                  title = TARGET_LABELS["cpi"])
+    p <- plot_forecast(fc, "cpi", history_df = hist_df, last_date = last_d,
+                       title = TARGET_LABELS["cpi"])
+    ggplotly(p) |> layout(hovermode = "x unified")
   })
 
-  output$fc_unemp <- renderPlot({
+  output$fc_unemp <- renderPlotly({
     fc <- forecasts()
     prep <- prepared()
     req(fc, prep)
     hist_df <- get_history("unemployment_rate")
     last_d <- max(prep$dates)
-    plot_forecast(fc, "unemployment_rate", history_df = hist_df,
-                  last_date = last_d,
-                  title = TARGET_LABELS["unemployment_rate"])
+    p <- plot_forecast(fc, "unemployment_rate", history_df = hist_df,
+                       last_date = last_d,
+                       title = TARGET_LABELS["unemployment_rate"])
+    ggplotly(p) |> layout(hovermode = "x unified")
   })
 
-  output$fc_cash <- renderPlot({
+  output$fc_cash <- renderPlotly({
     fc <- forecasts()
     prep <- prepared()
     req(fc, prep)
     hist_df <- get_history("cash_rate")
     last_d <- max(prep$dates)
-    plot_forecast(fc, "cash_rate", history_df = hist_df,
-                  last_date = last_d,
-                  title = TARGET_LABELS["cash_rate"])
+    p <- plot_forecast(fc, "cash_rate", history_df = hist_df,
+                       last_date = last_d,
+                       title = TARGET_LABELS["cash_rate"])
+    ggplotly(p) |> layout(hovermode = "x unified")
   })
 
   # ---- IRF plot ----
-  output$irf_plot <- renderPlot({
+  output$irf_plot <- renderPlotly({
     irf_obj <- irf_result()
     req(irf_obj)
     # Show responses of target variables only
@@ -337,50 +343,50 @@ server <- function(input, output, session) {
     # Also include factors if shock is a factor
     all_vars <- colnames(irf_obj$irf[[input$irf_shock]])
     resp_vars <- if (length(target_vars) > 0) target_vars else all_vars
-    plot_irf(irf_obj, impulse_var = input$irf_shock,
-             response_vars = resp_vars)
+    p <- plot_irf(irf_obj, impulse_var = input$irf_shock,
+                  response_vars = resp_vars)
+    ggplotly(p) |> layout(hovermode = "x unified")
   })
 
   # ---- FEVD plots ----
-  output$fevd_gdp <- renderPlot({
+  output$fevd_gdp <- renderPlotly({
     fevd <- fevd_result()
-    req(fevd)
-    if ("gdp" %in% names(fevd)) plot_fevd(fevd, "gdp")
+    req(fevd, "gdp" %in% names(fevd))
+    ggplotly(plot_fevd(fevd, "gdp")) |> layout(hovermode = "x unified")
   })
 
-  output$fevd_cpi <- renderPlot({
+  output$fevd_cpi <- renderPlotly({
     fevd <- fevd_result()
-    req(fevd)
-    if ("cpi" %in% names(fevd)) plot_fevd(fevd, "cpi")
+    req(fevd, "cpi" %in% names(fevd))
+    ggplotly(plot_fevd(fevd, "cpi")) |> layout(hovermode = "x unified")
   })
 
-  output$fevd_unemp <- renderPlot({
+  output$fevd_unemp <- renderPlotly({
     fevd <- fevd_result()
-    req(fevd)
-    if ("unemployment_rate" %in% names(fevd))
-      plot_fevd(fevd, "unemployment_rate")
+    req(fevd, "unemployment_rate" %in% names(fevd))
+    ggplotly(plot_fevd(fevd, "unemployment_rate")) |> layout(hovermode = "x unified")
   })
 
-  output$fevd_cash <- renderPlot({
+  output$fevd_cash <- renderPlotly({
     fevd <- fevd_result()
-    req(fevd)
-    if ("cash_rate" %in% names(fevd)) plot_fevd(fevd, "cash_rate")
+    req(fevd, "cash_rate" %in% names(fevd))
+    ggplotly(plot_fevd(fevd, "cash_rate")) |> layout(hovermode = "x unified")
   })
 
   # ---- Factor Loadings tab ----
-  output$loadings_plot <- renderPlot({
+  output$loadings_plot <- renderPlotly({
     mod <- favar_model()
     prep <- prepared()
     req(mod, prep)
     loadings_mat <- mod$factors$loadings
     series_names <- colnames(prep$built$panel)
-    plot_loadings(loadings_mat, series_names = series_names)
+    ggplotly(plot_loadings(loadings_mat, series_names = series_names))
   })
 
-  output$scree_plot <- renderPlot({
+  output$scree_plot <- renderPlotly({
     mod <- favar_model()
     req(mod)
-    plot_scree(mod$factors$sdev, n_factors = mod$factors$n_factors)
+    ggplotly(plot_scree(mod$factors$sdev, n_factors = mod$factors$n_factors))
   })
 
   output$factor_summary <- renderUI({
