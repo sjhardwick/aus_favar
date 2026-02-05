@@ -21,7 +21,8 @@ source("R/outputs.R")
 source("R/cache.R")
 
 # Plotly helper: hide confidence-band hover, label lines, remove modebar
-plotly_clean <- function(p, hide_fills = FALSE, label_lines = FALSE) {
+plotly_clean <- function(p, hide_fills = FALSE, label_lines = FALSE,
+                         date_hover = FALSE) {
   for (i in seq_along(p$x$data)) {
     tr <- p$x$data[[i]]
     has_fill <- !is.null(tr$fill) && nzchar(tr$fill)
@@ -31,12 +32,29 @@ plotly_clean <- function(p, hide_fills = FALSE, label_lines = FALSE) {
       col <- if (!is.null(tr$line$color)) tr$line$color else ""
       lbl <- if (grepl("rgba\\(0,0,0", col)) "Historical" else "Forecast"
       p$x$data[[i]]$name <- lbl
-      p$x$data[[i]]$hovertemplate <- paste0("%{y:.1f}<extra>", lbl, "</extra>")
+      if (date_hover && is.numeric(tr$x)) {
+        # Format days-since-epoch as "YYYY-QN" and attach as customdata
+        dates <- as.Date(tr$x, origin = "1970-01-01")
+        p$x$data[[i]]$customdata <- paste0(
+          format(dates, "%Y"), "-Q",
+          (as.numeric(format(dates, "%m")) - 1) %/% 3 + 1
+        )
+        p$x$data[[i]]$hovertemplate <- paste0(
+          "%{customdata}<br>%{y:.1f}<extra>", lbl, "</extra>"
+        )
+      } else {
+        p$x$data[[i]]$hovertemplate <- paste0("%{y:.1f}<extra>", lbl, "</extra>")
+      }
     }
   }
-  p |>
-    layout(hovermode = "x unified") |>
-    config(displayModeBar = FALSE)
+  # "closest" for date charts avoids the numeric axis hover label
+  # that "x" / "x unified" modes produce from raw day-since-epoch values
+  if (date_hover) {
+    p <- p |> layout(hovermode = "closest")
+  } else {
+    p <- p |> layout(hovermode = "x unified")
+  }
+  p |> config(displayModeBar = FALSE)
 }
 
 # Target variable labels for display
@@ -325,7 +343,7 @@ server <- function(input, output, session) {
     hist_df <- get_history("gdp")
     last_d <- max(prep$dates)
     p <- plot_forecast(fc, "gdp", history_df = hist_df, last_date = last_d)
-    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE)
+    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE, date_hover = TRUE)
   })
 
   output$fc_cpi <- renderPlotly({
@@ -336,7 +354,7 @@ server <- function(input, output, session) {
     hist_df <- get_history("cpi")
     last_d <- max(prep$dates)
     p <- plot_forecast(fc, "cpi", history_df = hist_df, last_date = last_d)
-    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE)
+    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE, date_hover = TRUE)
   })
 
   output$fc_unemp <- renderPlotly({
@@ -347,7 +365,7 @@ server <- function(input, output, session) {
     last_d <- max(prep$dates)
     p <- plot_forecast(fc, "unemployment_rate", history_df = hist_df,
                        last_date = last_d)
-    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE)
+    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE, date_hover = TRUE)
   })
 
   output$fc_cash <- renderPlotly({
@@ -358,7 +376,7 @@ server <- function(input, output, session) {
     last_d <- max(prep$dates)
     p <- plot_forecast(fc, "cash_rate", history_df = hist_df,
                        last_date = last_d)
-    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE)
+    ggplotly(p) |> plotly_clean(hide_fills = TRUE, label_lines = TRUE, date_hover = TRUE)
   })
 
   # ---- IRF plot ----
