@@ -105,15 +105,18 @@ annualise_forecast <- function(forecast_obj, variable) {
 
 #' Plot fan chart forecast for a single target variable
 #'
+#' Titles are expected to be rendered externally (e.g. via card_header).
+#'
 #' @param forecast_obj List returned by favar_forecast()
 #' @param variable Name of the variable to plot
 #' @param history_df Optional data frame with date and value columns for
 #'   historical data
 #' @param last_date Last date in the estimation sample
-#' @param title Plot title
+#' @param n_years_back Number of years of history to display before the last
+#'   forecast date (default 10)
 #' @return ggplot object
 plot_forecast <- function(forecast_obj, variable, history_df = NULL,
-                          last_date = NULL, title = NULL) {
+                          last_date = NULL, n_years_back = 10) {
   h <- nrow(forecast_obj$point)
 
   if (is.null(last_date)) {
@@ -127,6 +130,11 @@ plot_forecast <- function(forecast_obj, variable, history_df = NULL,
     length.out = h
   )
 
+  # Crop x-axis to (t - n_years_back, t) where t = last forecast year
+  x_start <- as.Date(paste0(
+    lubridate::year(max(fc_dates)) - n_years_back, "-01-01"
+  ))
+
   fc_df <- data.frame(
     date    = fc_dates,
     point   = forecast_obj$point[[variable]],
@@ -136,14 +144,11 @@ plot_forecast <- function(forecast_obj, variable, history_df = NULL,
     upper90 = forecast_obj$upper90[[variable]]
   )
 
-  if (is.null(title)) {
-    title <- paste("Forecast:", variable)
-  }
-
   p <- ggplot2::ggplot()
 
-  # Historical data
+  # Historical data (cropped to visible window)
   if (!is.null(history_df) && nrow(history_df) > 0) {
+    history_df <- history_df[history_df$date >= x_start, , drop = FALSE]
     p <- p + ggplot2::geom_line(
       data = history_df,
       ggplot2::aes(x = date, y = value),
@@ -171,13 +176,8 @@ plot_forecast <- function(forecast_obj, variable, history_df = NULL,
       ggplot2::aes(x = date, y = point),
       colour = "#2171B5", linewidth = 0.8
     ) +
-    ggplot2::labs(
-      title = title,
-      x = NULL,
-      y = NULL
-    ) +
-    ggplot2::theme_minimal(base_size = 13) +
-    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold"))
+    ggplot2::labs(x = NULL, y = NULL) +
+    ggplot2::theme_minimal(base_size = 11)
 
   p
 }
@@ -225,13 +225,11 @@ plot_irf <- function(irf_obj, impulse_var, response_vars = NULL) {
     ggplot2::geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
     ggplot2::facet_wrap(~response, scales = "free_y", ncol = 2) +
     ggplot2::labs(
-      title = paste("Impulse Response to:", impulse_var),
       x = "Quarters ahead",
       y = "Response"
     ) +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme_minimal(base_size = 11) +
     ggplot2::theme(
-      plot.title    = ggplot2::element_text(face = "bold"),
       strip.text    = ggplot2::element_text(face = "bold"),
       panel.spacing = ggplot2::unit(1, "lines")
     )
@@ -265,16 +263,12 @@ plot_fevd <- function(fevd_obj, variable) {
     ggplot2::scale_fill_manual(values = colours) +
     ggplot2::scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
     ggplot2::labs(
-      title = paste("FEVD:", variable),
-      x     = "Quarters ahead",
-      y     = "Share of forecast error variance",
-      fill  = "Shock"
+      x    = "Quarters ahead",
+      y    = NULL,
+      fill = "Shock"
     ) +
-    ggplot2::theme_minimal(base_size = 13) +
-    ggplot2::theme(
-      plot.title    = ggplot2::element_text(face = "bold"),
-      legend.position = "bottom"
-    )
+    ggplot2::theme_minimal(base_size = 11) +
+    ggplot2::theme(legend.position = "bottom")
 }
 
 #' Plot factor loadings as a heatmap
@@ -326,15 +320,11 @@ plot_loadings <- function(loadings_matrix, series_names = NULL,
       ggplot2::aes(label = sprintf("%.2f", loading)),
       size = 3, colour = "grey20"
     ) +
-    ggplot2::labs(
-      title = "Factor Loadings",
-      x = NULL, y = NULL
-    ) +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::labs(x = NULL, y = NULL) +
+    ggplot2::theme_minimal(base_size = 11) +
     ggplot2::theme(
-      plot.title     = ggplot2::element_text(face = "bold"),
-      axis.text.x    = ggplot2::element_text(angle = 0, hjust = 0.5),
-      panel.grid     = ggplot2::element_blank()
+      axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5),
+      panel.grid  = ggplot2::element_blank()
     )
 }
 
@@ -372,12 +362,6 @@ plot_scree <- function(sdev, n_factors = NULL) {
       name = "% of variance",
       sec.axis = ggplot2::sec_axis(~., name = "Cumulative %")
     ) +
-    ggplot2::labs(
-      title = "Variance Explained by Factor",
-      x = "Factor"
-    ) +
-    ggplot2::theme_minimal(base_size = 13) +
-    ggplot2::theme(
-      plot.title = ggplot2::element_text(face = "bold")
-    )
+    ggplot2::labs(x = "Factor") +
+    ggplot2::theme_minimal(base_size = 11)
 }
