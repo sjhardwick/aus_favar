@@ -187,13 +187,17 @@ server <- function(input, output, session) {
       if (!is.null(cached)) {
         rv$raw <- cached
       } else {
-        withProgress(message = "No cache found. Downloading data...", {
-          incProgress(0.1, detail = "Fetching ABS target series")
-          abs_df <- pull_abs_data()
-          incProgress(0.3, detail = "Fetching RBA cash rate")
-          rba_df <- pull_rba_data()
-          incProgress(0.5, detail = "Fetching panel data")
-          panel_df <- pull_panel_data()
+        n_steps <- 20
+        step <- 0
+        tick <- function(detail = "") {
+          step <<- step + 1
+          incProgress(1 / n_steps, detail = detail)
+        }
+        withProgress(message = "No cache found. Downloading data...", max = 1, {
+          abs_df <- pull_abs_data(progress = tick)
+          rba_df <- pull_rba_data(progress = tick)
+          panel_df <- pull_panel_data(progress = tick)
+          tick(detail = "Saving cache")
           rd <- list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
           cache_save(rd)
           rv$raw <- rd
@@ -204,13 +208,17 @@ server <- function(input, output, session) {
 
   # Refresh button: download fresh data and update cache
   observeEvent(input$refresh, {
-    withProgress(message = "Downloading fresh data...", {
-      incProgress(0.1, detail = "Fetching ABS target series")
-      abs_df <- pull_abs_data()
-      incProgress(0.3, detail = "Fetching RBA cash rate")
-      rba_df <- pull_rba_data()
-      incProgress(0.5, detail = "Fetching panel data")
-      panel_df <- pull_panel_data()
+    n_steps <- 20
+    step <- 0
+    tick <- function(detail = "") {
+      step <<- step + 1
+      incProgress(1 / n_steps, detail = detail)
+    }
+    withProgress(message = "Downloading fresh data...", max = 1, {
+      abs_df <- pull_abs_data(progress = tick)
+      rba_df <- pull_rba_data(progress = tick)
+      panel_df <- pull_panel_data(progress = tick)
+      tick(detail = "Saving cache")
       rd <- list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
       cache_save(rd)
       rv$raw <- rd

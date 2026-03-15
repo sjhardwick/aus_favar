@@ -5,7 +5,7 @@
 #'
 #' Downloads GDP, CPI, and unemployment rate from ABS.
 #' @return A tidy data frame with columns: date, series_id, series, value
-pull_abs_data <- function() {
+pull_abs_data <- function(progress = NULL) {
   # Helper: pick first matching series
   pick_first <- function(df, pattern) {
     matched <- df |>
@@ -16,6 +16,7 @@ pull_abs_data <- function() {
   }
 
   # GDP: National Accounts, cat 5206.0, chain volume measures
+  if (is.function(progress)) progress(detail = "ABS: GDP (5206.0)")
   gdp_raw <- readabs::read_abs(cat_no = "5206.0",
                                 tables = 2,
                                 check_local = FALSE)
@@ -31,11 +32,13 @@ pull_abs_data <- function() {
   # CPI: Consumer Price Index, All groups, Australia (series A2325846C)
   # Using read_abs_series for reliability — the catalogue tables have been
   # restructured and no longer carry the full quarterly CPI history.
+  if (is.function(progress)) progress(detail = "ABS: CPI")
   cpi_raw <- readabs::read_abs_series("A2325846C")
   cpi <- cpi_raw |>
     dplyr::transmute(date, series = "cpi", value)
 
   # Unemployment rate: Labour Force, cat 6202.0, seasonally adjusted
+  if (is.function(progress)) progress(detail = "ABS: Unemployment (6202.0)")
   unemp_raw <- readabs::read_abs(cat_no = "6202.0",
                                   tables = 1,
                                   check_local = FALSE)
@@ -55,7 +58,8 @@ pull_abs_data <- function() {
 #'
 #' Downloads the RBA cash rate target from statistical table A2.
 #' @return A tidy data frame with columns: date, series, value
-pull_rba_data <- function() {
+pull_rba_data <- function(progress = NULL) {
+  if (is.function(progress)) progress(detail = "RBA: Cash rate (A2)")
   rba_raw <- readrba::read_rba(table_no = "A2")
 
   # "New Cash Rate Target" gives the level after each change
@@ -106,7 +110,7 @@ pull_rba_data <- function() {
 #' Fetches ~30-50 additional ABS/RBA series covering labour market,
 #' housing, financial, trade, and production indicators.
 #' @return A tidy data frame with columns: date, series, value
-pull_panel_data <- function() {
+pull_panel_data <- function(progress = NULL) {
   panel_list <- list()
 
   # Helper: extract first matching SA series from an ABS dataset
@@ -125,6 +129,7 @@ pull_panel_data <- function() {
   }
 
   # --- Labour market indicators (cat 6202.0) ---
+  if (is.function(progress)) progress(detail = "ABS: Labour force (6202.0)")
   lab_raw <- readabs::read_abs(cat_no = "6202.0", tables = 1,
                                 check_local = FALSE)
 
@@ -140,6 +145,7 @@ pull_panel_data <- function() {
     lab_raw, "^Labour force total.*Persons", "labour_force")
 
   # --- Wage Price Index (cat 6345.0) ---
+  if (is.function(progress)) progress(detail = "ABS: Wage Price Index (6345.0)")
   tryCatch({
     wpi_raw <- readabs::read_abs(cat_no = "6345.0", tables = 1,
                                   check_local = FALSE)
@@ -159,6 +165,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("WPI download failed: ", e$message))
 
   # --- Retail trade (cat 8501.0) ---
+  if (is.function(progress)) progress(detail = "ABS: Retail trade (8501.0)")
   tryCatch({
     retail_raw <- readabs::read_abs(cat_no = "8501.0", tables = 1,
                                      check_local = FALSE)
@@ -167,6 +174,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("Retail download failed: ", e$message))
 
   # --- Building approvals (cat 8731.0) ---
+  if (is.function(progress)) progress(detail = "ABS: Building approvals (8731.0)")
   tryCatch({
     build_raw <- readabs::read_abs(cat_no = "8731.0", tables = 1,
                                     check_local = FALSE)
@@ -175,6 +183,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("Building approvals download failed: ", e$message))
 
   # --- National accounts components (cat 5206.0) ---
+  if (is.function(progress)) progress(detail = "ABS: National accounts (5206.0)")
   tryCatch({
     na_raw <- readabs::read_abs(cat_no = "5206.0", tables = 2,
                                  check_local = FALSE)
@@ -191,6 +200,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("National accounts download failed: ", e$message))
 
   # --- RBA financial indicators (table F1.1 - Interest rates) ---
+  if (is.function(progress)) progress(detail = "RBA: Interest rates (F1.1)")
   tryCatch({
     rates_raw <- readrba::read_rba(table_no = "F1.1")
     panel_list$bill90 <- rates_raw |>
@@ -200,6 +210,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA F1.1 download failed: ", e$message))
 
   # --- RBA exchange rates (table F11.1) ---
+  if (is.function(progress)) progress(detail = "RBA: Exchange rates (F11.1)")
   tryCatch({
     fx_raw <- readrba::read_rba(table_no = "F11.1")
     panel_list$twi <- fx_raw |>
@@ -213,6 +224,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA F11.1 download failed: ", e$message))
 
   # --- RBA monetary aggregates (table D3) ---
+  if (is.function(progress)) progress(detail = "RBA: Monetary aggregates (D3)")
   tryCatch({
     money_raw <- readrba::read_rba(table_no = "D3")
     panel_list$m3 <- money_raw |>
@@ -226,6 +238,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA D3 download failed: ", e$message))
 
   # --- RBA credit (table D1) ---
+  if (is.function(progress)) progress(detail = "RBA: Credit (D1)")
   tryCatch({
     credit_raw <- readrba::read_rba(table_no = "D1")
     panel_list$credit <- credit_raw |>
@@ -239,6 +252,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA D1 download failed: ", e$message))
 
   # --- Merchandise trade (cat 5368.0) ---
+  if (is.function(progress)) progress(detail = "ABS: Merchandise trade (5368.0)")
   tryCatch({
     trade_raw <- readabs::read_abs(cat_no = "5368.0", tables = 1,
                                     check_local = FALSE)
@@ -247,6 +261,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("Trade download failed: ", e$message))
 
   # --- Producer Price Index (cat 6427.0) ---
+  if (is.function(progress)) progress(detail = "ABS: Producer prices (6427.0)")
   tryCatch({
     ppi_raw <- readabs::read_abs(cat_no = "6427.0", tables = 1,
                                   check_local = FALSE)
@@ -255,6 +270,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("PPI download failed: ", e$message))
 
   # --- RBA Commodity Prices (table I2) ---
+  if (is.function(progress)) progress(detail = "RBA: Commodity prices (I2)")
   tryCatch({
     comm_raw <- readrba::read_rba(table_no = "I2")
     # Overall commodity price index (A$)
@@ -285,6 +301,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA I2 download failed: ", e$message))
 
   # --- RBA International Trade (table I1) ---
+  if (is.function(progress)) progress(detail = "RBA: International trade (I1)")
   tryCatch({
     trade_rba <- readrba::read_rba(table_no = "I1")
     # Coal exports
@@ -305,6 +322,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA I1 download failed: ", e$message))
 
   # --- RBA Government Bond Yields (table F2) ---
+  if (is.function(progress)) progress(detail = "RBA: Bond yields (F2)")
   tryCatch({
     yields_raw <- readrba::read_rba(table_no = "F2")
     panel_list$yield_2y <- yields_raw |>
@@ -326,6 +344,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA F2 download failed: ", e$message))
 
   # --- RBA Inflation Expectations (table G3) ---
+  if (is.function(progress)) progress(detail = "RBA: Inflation expectations (G3)")
   tryCatch({
     infl_exp_raw <- readrba::read_rba(table_no = "G3")
     panel_list$infl_exp_consumer <- infl_exp_raw |>
@@ -356,6 +375,7 @@ pull_panel_data <- function() {
   }, error = function(e) message("RBA G3 download failed: ", e$message))
 
   # --- Terms of trade (ABS 5206.0, table 1) ---
+  if (is.function(progress)) progress(detail = "ABS: Terms of trade (5206.0)")
   tryCatch({
     na1_raw <- readabs::read_abs(cat_no = "5206.0", tables = 1,
                                   check_local = FALSE)
