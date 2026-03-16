@@ -5,6 +5,6 @@ account: sjhardwick
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16588941
-bundleId: 11540207
+bundleId: 11714488
 url: https://sjhardwick.shinyapps.io/aus_favar/
 version: 1

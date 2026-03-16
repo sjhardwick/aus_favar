@@ -322,26 +322,11 @@ pull_panel_data <- function(progress = NULL) {
   }, error = function(e) message("RBA I1 download failed: ", e$message))
 
   # --- RBA Government Bond Yields (table F2) ---
-  if (is.function(progress)) progress(detail = "RBA: Bond yields (F2)")
-  tryCatch({
-    yields_raw <- readrba::read_rba(table_no = "F2")
-    panel_list$yield_2y <- yields_raw |>
-      dplyr::filter(grepl("2 year bond", series, ignore.case = TRUE)) |>
-      dplyr::transmute(date, series = "yield_2y", value) |>
-      dplyr::distinct(date, .keep_all = TRUE)
-    panel_list$yield_3y <- yields_raw |>
-      dplyr::filter(grepl("3 year bond", series, ignore.case = TRUE)) |>
-      dplyr::transmute(date, series = "yield_3y", value) |>
-      dplyr::distinct(date, .keep_all = TRUE)
-    panel_list$yield_5y <- yields_raw |>
-      dplyr::filter(grepl("5 year bond", series, ignore.case = TRUE)) |>
-      dplyr::transmute(date, series = "yield_5y", value) |>
-      dplyr::distinct(date, .keep_all = TRUE)
-    panel_list$yield_10y <- yields_raw |>
-      dplyr::filter(grepl("10 year bond", series, ignore.case = TRUE)) |>
-      dplyr::transmute(date, series = "yield_10y", value) |>
-      dplyr::distinct(date, .keep_all = TRUE)
-  }, error = function(e) message("RBA F2 download failed: ", e$message))
+  # Skipped: F2 is a ~8 MB daily xlsx that causes OOM on shinyapps.io
+  # free-tier instances during parsing. Bond yield series are included
+  # in the bundled cache instead.
+  if (is.function(progress)) progress(detail = "Skipping F2 (too large)")
+  gc()
 
   # --- RBA Inflation Expectations (table G3) ---
   if (is.function(progress)) progress(detail = "RBA: Inflation expectations (G3)")

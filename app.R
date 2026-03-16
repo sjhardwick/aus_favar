@@ -70,6 +70,12 @@ TARGET_NAMES <- names(TARGET_LABELS)
 # ---- UI ----
 ui <- page_sidebar(
   title = "Australian Economy FAVAR",
+  # Send a lightweight WebSocket message every 15 s so the shinyapps.io
+  # proxy sees traffic and doesn't drop the connection while R is blocked
+  # on a long-running download.
+  tags$head(tags$script(HTML(
+    "setInterval(function(){ Shiny.setInputValue('keepalive', Date.now()); }, 15000);"
+  ))),
   theme = bs_theme(
     bootswatch = "flatly",
     base_font = font_google("Inter"),
@@ -193,7 +199,7 @@ server <- function(input, output, session) {
           step <<- step + 1
           incProgress(1 / n_steps, detail = detail)
         }
-        withProgress(message = "No cache found. Downloading data...", max = 1, {
+        withProgress(message = "No cache found. Downloading data…", max = 1, {
           abs_df <- pull_abs_data(progress = tick)
           rba_df <- pull_rba_data(progress = tick)
           panel_df <- pull_panel_data(progress = tick)
@@ -214,7 +220,7 @@ server <- function(input, output, session) {
       step <<- step + 1
       incProgress(1 / n_steps, detail = detail)
     }
-    withProgress(message = "Downloading fresh data...", max = 1, {
+    withProgress(message = "Downloading fresh data…", max = 1, {
       abs_df <- pull_abs_data(progress = tick)
       rba_df <- pull_rba_data(progress = tick)
       panel_df <- pull_panel_data(progress = tick)
