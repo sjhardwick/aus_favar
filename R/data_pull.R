@@ -1,6 +1,32 @@
 # data_pull.R
 # Functions to download Australian macroeconomic data from ABS and RBA
 
+#' Pull a labour-force series from the ABS API
+#'
+#' Uses the LF dataset in the ABS Data Explorer, which replaced the old
+#' catalogue-based labour force release path.
+pull_lf_series <- function(measure, label) {
+  lf_raw <- readabs::read_api(
+    "LF",
+    datakey = list(
+      measure = measure,
+      sex = "3",
+      age = "1599",
+      tsest = "20",
+      region = "AUS",
+      freq = "M"
+    )
+  )
+
+  lf_raw |>
+    dplyr::transmute(
+      date = as.Date(paste0(as.character(time_period), "-01")),
+      series = label,
+      value = as.numeric(obs_value)
+    ) |>
+    dplyr::arrange(date)
+}
+
 #' Pull key ABS target series
 #'
 #' Downloads GDP, CPI, and unemployment rate from ABS.
@@ -37,19 +63,10 @@ pull_abs_data <- function(progress = NULL) {
   cpi <- cpi_raw |>
     dplyr::transmute(date, series = "cpi", value)
 
-  # Unemployment rate: Labour Force, cat 6202.0, seasonally adjusted
-  if (is.function(progress)) progress(detail = "ABS: Unemployment (6202.0)")
-  unemp_raw <- readabs::read_abs(cat_no = "6202.0",
-                                  tables = 1,
-                                  check_local = FALSE)
-  unemp <- unemp_raw |>
-    dplyr::filter(
-      series_type == "Seasonally Adjusted",
-      grepl("^Unemployment rate.*Persons", series, ignore.case = TRUE)
-    )
-  unemp <- unemp |>
-    dplyr::filter(series_id == unemp$series_id[1]) |>
-    dplyr::transmute(date, series = "unemployment_rate", value)
+  # Unemployment rate: use the ABS API LF dataset because the old 6202.0
+  # catalogue lookup has been retired by ABS.
+  if (is.function(progress)) progress(detail = "ABS: Unemployment (LF API)")
+  unemp <- pull_lf_series("M13", "unemployment_rate")
 
   dplyr::bind_rows(gdp, cpi, unemp)
 }
@@ -128,21 +145,17 @@ pull_panel_data <- function(progress = NULL) {
       dplyr::transmute(date, series = label, value)
   }
 
-  # --- Labour market indicators (cat 6202.0) ---
-  if (is.function(progress)) progress(detail = "ABS: Labour force (6202.0)")
-  lab_raw <- readabs::read_abs(cat_no = "6202.0", tables = 1,
-                                check_local = FALSE)
-
-  panel_list$employment <- extract_abs_sa(
-    lab_raw, "^Employed total.*Persons", "employment")
-  panel_list$fulltime <- extract_abs_sa(
-    lab_raw, "Employed full-time.*Persons", "fulltime_employment")
-  panel_list$parttime <- extract_abs_sa(
-    lab_raw, "Employed part-time.*Persons", "parttime_employment")
-  panel_list$participation <- extract_abs_sa(
-    lab_raw, "^Participation rate.*Persons", "participation_rate")
-  panel_list$labour_force <- extract_abs_sa(
-    lab_raw, "^Labour force total.*Persons", "labour_force")
+  # --- Labour market indicators (ABS API LF dataset) ---
+  if (is.function(progress)) progress(detail = "ABS: Employment (LF API)")
+  panel_list$employment <- pull_lf_series("M3", "employment")
+  if (is.function(progress)) progress(detail = "ABS: Full-time employment (LF API)")
+  panel_list$fulltime <- pull_lf_series("M1", "fulltime_employment")
+  if (is.function(progress)) progress(detail = "ABS: Part-time employment (LF API)")
+  panel_list$parttime <- pull_lf_series("M2", "parttime_employment")
+  if (is.function(progress)) progress(detail = "ABS: Participation rate (LF API)")
+  panel_list$participation <- pull_lf_series("M12", "participation_rate")
+  if (is.function(progress)) progress(detail = "ABS: Labour force (LF API)")
+  panel_list$labour_force <- pull_lf_series("M9", "labour_force")
 
   # --- Wage Price Index (cat 6345.0) ---
   if (is.function(progress)) progress(detail = "ABS: Wage Price Index (6345.0)")

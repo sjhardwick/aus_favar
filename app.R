@@ -183,7 +183,24 @@ ui <- page_sidebar(
 server <- function(input, output, session) {
 
   # Reactive values to hold raw data
-  rv <- reactiveValues(raw = NULL)
+  rv <- reactiveValues(raw = NULL, refresh_error = NULL)
+
+  download_raw_data <- function(progress_message) {
+    n_steps <- 25
+    step <- 0
+    tick <- function(detail = "") {
+      step <<- step + 1
+      incProgress(1 / n_steps, detail = detail)
+    }
+
+    withProgress(message = progress_message, max = 1, {
+      abs_df <- pull_abs_data(progress = tick)
+      rba_df <- pull_rba_data(progress = tick)
+      panel_df <- pull_panel_data(progress = tick)
+      tick(detail = "Saving cache")
+      list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
+    })
+  }
 
   # On startup: load from cache if available, otherwise download
 
@@ -193,20 +210,14 @@ server <- function(input, output, session) {
       if (!is.null(cached)) {
         rv$raw <- cached
       } else {
-        n_steps <- 20
-        step <- 0
-        tick <- function(detail = "") {
-          step <<- step + 1
-          incProgress(1 / n_steps, detail = detail)
-        }
-        withProgress(message = "No cache found. Downloading data…", max = 1, {
-          abs_df <- pull_abs_data(progress = tick)
-          rba_df <- pull_rba_data(progress = tick)
-          panel_df <- pull_panel_data(progress = tick)
-          tick(detail = "Saving cache")
-          rd <- list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
+        tryCatch({
+          rd <- download_raw_data("No cache found. Downloading data…")
           cache_save(rd)
           rv$raw <- rd
+          rv$refresh_error <- NULL
+        }, error = function(e) {
+          rv$refresh_error <- paste("Initial data download failed:", conditionMessage(e))
+          showNotification(rv$refresh_error, type = "error", duration = NULL)
         })
       }
     }
@@ -214,20 +225,15 @@ server <- function(input, output, session) {
 
   # Refresh button: download fresh data and update cache
   observeEvent(input$refresh, {
-    n_steps <- 20
-    step <- 0
-    tick <- function(detail = "") {
-      step <<- step + 1
-      incProgress(1 / n_steps, detail = detail)
-    }
-    withProgress(message = "Downloading fresh data…", max = 1, {
-      abs_df <- pull_abs_data(progress = tick)
-      rba_df <- pull_rba_data(progress = tick)
-      panel_df <- pull_panel_data(progress = tick)
-      tick(detail = "Saving cache")
-      rd <- list(targets = bind_rows(abs_df, rba_df), panel = panel_df)
+    tryCatch({
+      rd <- download_raw_data("Downloading fresh data…")
       cache_save(rd)
       rv$raw <- rd
+      rv$refresh_error <- NULL
+      showNotification("Data refresh complete.", type = "message", duration = 5)
+    }, error = function(e) {
+      rv$refresh_error <- paste("Data refresh failed:", conditionMessage(e))
+      showNotification(rv$refresh_error, type = "error", duration = NULL)
     })
   })
 
@@ -238,7 +244,12 @@ server <- function(input, output, session) {
   output$cache_status <- renderUI({
     # Re-render when raw data changes
     raw_data()
-    helpText(paste("Data cached:", cache_age_label()))
+    tagList(
+      helpText(paste("Data cached:", cache_age_label())),
+      if (!is.null(rv$refresh_error)) {
+        div(class = "text-danger small", rv$refresh_error)
+      }
+    )
   })
 
   # Reactive: prepared data
